@@ -7,7 +7,7 @@ import AuthorizationService from '@deepseek-ai/dsh-authorization'
 import type { AuthorizationInteraction, AuthorizationNotice, AuthorizationPrompt } from '@deepseek-ai/dsh-authorization'
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local'
 import type { CredentialKey } from '@deepseek-ai/dsh-credentials'
-import type { AuthEvent, AuthInteraction, AuthPrompt, AuthType, Credential } from '@earendil-works/pi-ai'
+import type { AuthEvent, AuthInteraction, AuthPrompt, AuthType, Credential, LoginOptions } from '@earendil-works/pi-ai'
 
 const login = vi.hoisted(() => vi.fn())
 
@@ -23,6 +23,8 @@ const { credentialStoreFrom, authContextFrom, recordKeyFor } = await import('../
 const { registerPiAiFlows } = await import('../src/login.ts')
 
 const CODEX = recordKeyFor('openai-codex')
+/** The installation host id a flow that registers an agent host is handed. */
+const DEVICE_ID = '6f1c1a1e-2b3d-4c5e-8f90-1234567890ab'
 const dirs: string[] = []
 
 /** A context with the record store, the seam, and every pi-ai login flow. */
@@ -32,7 +34,11 @@ async function harness(): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(LocalCredentialProvider, { path: join(dir, '.credentials.yaml'), watch: false })
   await ctx.plugin(AuthorizationService)
-  registerPiAiFlows(ctx, { credentials: credentialStoreFrom(ctx), authContext: authContextFrom(ctx) })
+  registerPiAiFlows(ctx, {
+    credentials: credentialStoreFrom(ctx),
+    authContext: authContextFrom(ctx),
+    deviceId: () => DEVICE_ID,
+  })
   return ctx
 }
 
@@ -102,10 +108,32 @@ describe('pi-ai login flows', () => {
     const ctx = await harness()
 
     await attempt(ctx, () => Promise.resolve())
-    expect(login).toHaveBeenLastCalledWith('openai-codex', 'oauth', expect.anything())
+    expect(login).toHaveBeenLastCalledWith('openai-codex', 'oauth', expect.anything(), expect.anything())
 
     await attempt(ctx, () => Promise.resolve(), { key: recordKeyFor('anthropic'), method: 'api-key' })
-    expect(login).toHaveBeenLastCalledWith('anthropic', 'api_key', expect.anything())
+    expect(login).toHaveBeenLastCalledWith('anthropic', 'api_key', expect.anything(), expect.anything())
+  })
+
+  it('hands every login the installation host id a registering flow asks for', async () => {
+    const ctx = await harness()
+    let options: LoginOptions | undefined
+    login.mockImplementation((
+      providerId: string,
+      _type: AuthType,
+      _interaction: AuthInteraction,
+      given?: LoginOptions,
+    ) => {
+      options = given
+      const granted: Credential = { type: 'oauth', access: 'at', refresh: 'rt', expires: 1 }
+      return credentialStoreFrom(ctx).modify(providerId, () => Promise.resolve(granted))
+    })
+
+    await expect(ctx.authorization.begin({ key: CODEX, interaction: surface() }))
+      .resolves.toEqual({ status: 'authorized' })
+
+    // OpenAI's "Sign in with ChatGPT" refuses to start without one, so the
+    // option is present on every flow and answers the same id every time.
+    expect(options?.getDeviceId?.()).toBe(DEVICE_ID)
   })
 
   it('commits what the login produced, where the adapter reads it back', async () => {

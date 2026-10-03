@@ -19,6 +19,7 @@ import {
 import type { CredentialKey, CredentialProvider, CredentialRecord } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { LlmError } from '@deepseek-ai/dsh-llm'
+import { getOrCreateDeviceId } from './device-id.ts'
 
 /**
  * The record scope every credential this adapter family stores is written
@@ -228,4 +229,19 @@ export function authContextFrom(ctx: Context): AuthContext {
       }
     },
   }
+}
+
+/**
+ * The installation host id a sign-in flow may ask for.
+ *
+ * Only a flow that registers an agent host reads it — today that is OpenAI's
+ * "Sign in with ChatGPT", which sends it as `ext_agent_host_id` — so pi-ai
+ * calls it lazily and a collection that never signs in never touches the disk.
+ * The value is a per-harness-home UUID, not a per-process one: pi-ai treats it
+ * as the identity of this installation across launches.
+ * @param ctx - the plugin context carrying the launch environment.
+ * @returns a thunk answering pi-ai's `LoginOptions.getDeviceId`.
+ */
+export function deviceIdFrom(ctx: Context): () => string {
+  return () => getOrCreateDeviceId(ctx)
 }

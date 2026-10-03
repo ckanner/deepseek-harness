@@ -103,12 +103,19 @@ export interface PiAiAdapterOptions {
   onReplayDegrade?: (detail: { provider: string; model: string; reason: string }) => void
 }
 
-/** The two auth injectables a pi-ai collection is built with. */
+/** The auth injectables a pi-ai collection is built with. */
 export interface PiAiAuthInjection {
   /** Durable storage for credentials pi-ai itself writes: logins, and the refreshes it runs under its own lock. */
   credentials: CredentialStore
   /** Ambient lookups a provider performs while resolving its own auth. */
   authContext: AuthContext
+  /**
+   * This installation's stable host id, read only by a sign-in flow that
+   * registers one — OpenAI's "Sign in with ChatGPT" sends it as
+   * `ext_agent_host_id`. Answered lazily and required to stay the same for the
+   * life of the installation, so a resumed sign-in reads as the same host.
+   */
+  deviceId: () => string
 }
 
 /** Copy profile stream knobs into pi-ai's common option vocabulary. */

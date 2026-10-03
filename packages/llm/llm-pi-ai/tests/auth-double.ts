@@ -35,5 +35,7 @@ export function memoryAuth(seed: Record<string, Credential> = {}): PiAiAuthInjec
       env: () => Promise.resolve(undefined),
       fileExists: () => Promise.resolve(false),
     },
+    // Streaming tests never sign in, so this only has to satisfy the shape.
+    deviceId: () => '00000000-0000-4000-8000-000000000000',
   }
 }

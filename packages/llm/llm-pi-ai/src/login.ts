@@ -154,6 +154,11 @@ export function registerPiAiFlows(ctx: Context, auth: PiAiAuthInjection): void {
           signal: session.signal,
           notify: (event) => { relay(event, session) },
           prompt: prompt => session.prompt(restate(prompt)),
+        }, {
+          // A flow that registers an agent host — OpenAI's "Sign in with
+          // ChatGPT" — refuses to start without one; every other flow ignores
+          // the option, and the thunk keeps the disk untouched until then.
+          getDeviceId: auth.deviceId,
         })
       },
     })
